@@ -1,0 +1,29 @@
+[project]
+name = "uniphone"
+version = "0.1.0"
+description = "Agent-agnostic phone harness: any LLM, any phone - Android via ADB, iOS via macOS Mirroring"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = []
+
+[project.optional-dependencies]
+ios = [
+    "pyobjc-framework-Quartz",
+    "pyobjc-framework-Vision",
+    "pyobjc-framework-AppKit",
+]
+ocr = ["rapidocr-onnxruntime"]
+agent = ["ollama"]
+mcp = ["mcp"]
+
+[project.scripts]
+uniphone = "uniphone.run:main"
+uniphone-mcp = "uniphone.mcp_server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uniphone"]
