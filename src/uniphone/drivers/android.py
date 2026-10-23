@@ -4,7 +4,7 @@ No root, no companion app, any host OS. Eyes: `screencap` plus a REAL UI
 tree from `uiautomator dump` (better than OCR - every node with text, bounds
 and clickable). Hands: `input tap/swipe/text/keyevent`.
 """
-import logging, re, subprocess, tempfile, time
+import logging, os, re, subprocess, tempfile, time
 from pathlib import Path
 
 from .. import ocr as _ocr
@@ -42,6 +42,10 @@ class AndroidDriver(DeviceDriver):
         self._size = None
         self._bounds = None
         self._adbkb = None
+        try:  # remote/cloud links are slower - UNIPHONE_ADB_TIMEOUT bumps it
+            self.timeout = float(os.environ.get("UNIPHONE_ADB_TIMEOUT") or 30)
+        except ValueError:
+            self.timeout = 30.0
 
     def _has_adbkeyboard(self) -> bool:
         if self._adbkb is None:
@@ -50,13 +54,14 @@ class AndroidDriver(DeviceDriver):
         return self._adbkb
 
     # --- low level ---
-    def _cmd(self, *args, binary=False, timeout=30):
+    def _cmd(self, *args, binary=False, timeout=None):
         _log.debug("adb %s", " ".join(args))
         cmd = [self.adb]
         if self.serial:
             cmd += ["-s", self.serial]
         cmd += list(args)
-        r = subprocess.run(cmd, capture_output=True, timeout=timeout)
+        r = subprocess.run(cmd, capture_output=True,
+                           timeout=self.timeout if timeout is None else timeout)
         if r.returncode != 0:
             raise RuntimeError(
                 f"adb {' '.join(args)} failed: "
@@ -225,3 +230,47 @@ def _escape(s):
         else:
             out.append(ch)
     return "".join(out)
+
+
+def adb_connect(target: str, adb: str = "adb", timeout: float = 30) -> str:
+    """Connect to a network/cloud Android via `adb connect host:port`.
+
+    Verifies the result against `adb devices` (the connect line alone can
+    lie) and returns the real state: 'device' | 'offline' | 'unauthorized'.
+    Raises RuntimeError with adb's reason on failure.
+    """
+    target = target if ":" in target else f"{target}:5555"
+    try:
+        r = subprocess.run([adb, "connect", target],
+                           capture_output=True, timeout=timeout)
+    except FileNotFoundError:
+        raise RuntimeError(
+            "adb not found. Install Android platform-tools and make sure "
+            "`adb` is on PATH.")
+    except subprocess.SubprocessError as e:
+        raise RuntimeError(f"adb connect to {target} timed out or failed: {e}")
+    out = r.stdout.decode(errors="replace").strip().lower()
+    err = r.stderr.decode(errors="replace").strip()
+    # success lines: 'connected to ...' / 'already connected to ...'
+    if "connected to" not in out:
+        raise RuntimeError(f"adb connect to {target} failed: {out or err}")
+    state = _adb_state(target, adb)
+    if state is None:
+        raise RuntimeError(
+            f"adb connect to {target} reported success but the device is "
+            f"not listed: {out or err}")
+    return state
+
+
+def _adb_state(target: str, adb: str = "adb") -> str | None:
+    """State of one serial from `adb devices`, or None when absent."""
+    try:
+        out = subprocess.run([adb, "devices"], capture_output=True,
+                             timeout=15).stdout.decode(errors="replace")
+    except (FileNotFoundError, subprocess.SubprocessError):
+        return None
+    for line in out.splitlines()[1:]:
+        parts = line.split()
+        if len(parts) == 2 and parts[0] == target:
+            return parts[1]
+    return None

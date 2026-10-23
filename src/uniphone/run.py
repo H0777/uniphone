@@ -10,12 +10,14 @@ USAGE = """Usage:
 
 Commands:
   uniphone agent "task" [--model qwen2.5vl:7b] [--driver android] [--max-steps 30] [--yes]
+  uniphone connect <host:port>  connect a network/cloud Android (adb connect)
   uniphone devices            show detected driver + connection state
   uniphone mcp                run the MCP server (stdio)
   uniphone skill              print the agent skill text (SKILL.md)
   uniphone --doctor           diagnose setup
 
 Env: UNIPHONE_DRIVER=android|ios-mirror   UNIPHONE_SERIAL=<adb serial>
+     UNIPHONE_ADB_TIMEOUT=30              seconds, raise for slow cloud links
 """
 
 
@@ -58,6 +60,9 @@ def main():
     if args and args[0] == "skill":
         print(_resource_text("SKILL.md"), end="")
         return
+    if args and args[0] == "connect":
+        _connect(args[1:])
+        return
     if args and args[0] == "devices":
         from . import helpers
         try:
@@ -86,6 +91,32 @@ def main():
     # This is intentional — uniphone is a CLI tool the user runs locally,
     # and script mode is equivalent to `python -c`. No sandboxing is applied.
     exec(code, g)
+
+
+def _connect(argv):
+    if not argv:
+        sys.exit("usage: uniphone connect <host:port>   "
+                 "# network/cloud Android (adb connect)")
+    target = argv[0]
+    from .drivers.android import adb_connect
+    try:
+        state = adb_connect(target)
+    except RuntimeError as e:
+        print(f"connect failed: {e}")
+        sys.exit(1)
+    if state == "device":
+        print(f"connected: {target} is ready.")
+        hint = "set UNIPHONE_SERIAL={}" if sys.platform == "win32" \
+            else "export UNIPHONE_SERIAL={}"
+        print(f"If several adb devices are attached, {hint.format(target)}")
+    elif state == "unauthorized":
+        print(f"connected, but {target} is unauthorized: tap Allow on the "
+              "phone's USB-debugging prompt, then re-run `uniphone devices`.")
+    elif state == "offline":
+        print(f"{target} is offline: run `adb disconnect {target}`, then "
+              "connect again.")
+    else:
+        print(f"{target} state: {state}")
 
 
 def _agent(argv):

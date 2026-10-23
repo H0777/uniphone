@@ -15,6 +15,12 @@ Use once. For phone work, read SKILL.md.
    to adb directly.
 4. Optional Arabic/emoji typing: ADBKeyboard
    (https://github.com/senzhk/ADBKeyBoard) - `input text` is ASCII-only.
+5. Cloud/network Android (no cable): `uniphone connect <host:port>` - any
+   adb endpoint works (cloud Android providers, or wireless debugging on
+   Android 11+: pair once with `adb pair <ip:port>`, enter the code, then
+   connect). If several devices are attached, pick one with
+   `UNIPHONE_SERIAL`; slow links: `UNIPHONE_ADB_TIMEOUT=60`.
+   Privacy note: a cloud provider sees everything on the screen.
 
 ### iPhone (needs macOS Sequoia+)
 
