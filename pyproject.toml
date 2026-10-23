@@ -16,6 +16,7 @@ ios = [
 ocr = ["rapidocr-onnxruntime"]
 agent = ["ollama"]
 mcp = ["mcp"]
+dev = ["pytest>=7.0"]
 
 [project.scripts]
 uniphone = "uniphone.run:main"
@@ -27,3 +28,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/uniphone"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
