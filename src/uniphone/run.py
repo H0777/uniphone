@@ -56,6 +56,9 @@ def main():
     from . import helpers
     g = {k: v for k, v in vars(helpers).items() if not k.startswith("_")}
     g["__name__"] = "__main__"
+    # SECURITY: exec() runs arbitrary user-supplied code from stdin.
+    # This is intentional — uniphone is a CLI tool the user runs locally,
+    # and script mode is equivalent to `python -c`. No sandboxing is applied.
     exec(code, g)
 
 
