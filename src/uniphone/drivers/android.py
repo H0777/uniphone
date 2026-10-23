@@ -4,10 +4,12 @@ No root, no companion app, any host OS. Eyes: `screencap` plus a REAL UI
 tree from `uiautomator dump` (better than OCR - every node with text, bounds
 and clickable). Hands: `input tap/swipe/text/keyevent`.
 """
-import re, subprocess, tempfile, time
+import logging, re, subprocess, tempfile, time
 from pathlib import Path
 
 from .base import DeviceDriver
+
+_log = logging.getLogger("uniphone.android")
 
 TMP = Path(tempfile.gettempdir()) / "uniphone"
 TMP.mkdir(exist_ok=True)
@@ -39,6 +41,7 @@ class AndroidDriver(DeviceDriver):
 
     # --- low level ---
     def _cmd(self, *args, binary=False, timeout=30):
+        _log.debug("adb %s", " ".join(args))
         cmd = [self.adb]
         if self.serial:
             cmd += ["-s", self.serial]
@@ -106,6 +109,7 @@ class AndroidDriver(DeviceDriver):
                 break
             except Exception as e:
                 last = e
+                _log.warning("uiautomator dump failed, retrying: %s", e)
                 time.sleep(0.6)
         if root is None:
             raise RuntimeError(f"uiautomator dump failed: {last}")
@@ -124,6 +128,7 @@ class AndroidDriver(DeviceDriver):
                 "w": x2 - x1, "h": y2 - y1,
                 "clickable": node.get("clickable") == "true",
             })
+        _log.debug("uiautomator dump: %d elements", len(out))
         return out
 
     # --- hands ---

@@ -3,8 +3,9 @@
 Only needed for drivers without a real UI tree (iOS mirroring). Android gets
 its element tree from uiautomator, so OCR is optional there.
 """
-import struct, sys
+import logging, struct, sys
 
+_log = logging.getLogger("uniphone.ocr")
 _backend = None
 _engine = None
 
@@ -31,6 +32,7 @@ def backend():
     try:
         import rapidocr_onnxruntime  # noqa: F401
         _backend = "rapidocr"
+        _log.info("OCR backend: %s", _backend)
         return _backend
     except ImportError:
         pass
@@ -56,6 +58,7 @@ def recognize(path, bounds):
             "w": round(pw * sx, 1),
             "h": round(ph * sy, 1),
         })
+    _log.debug("OCR found %d regions", len(out))
     return out
 
 

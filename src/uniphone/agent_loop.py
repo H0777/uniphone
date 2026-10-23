@@ -5,7 +5,9 @@ JSON action. Works with any vision model Ollama can run (qwen2.5vl,
 llama3.2-vision, ...). Usage:
     uniphone agent "open Notes and create a note called shopping"
 """
-import json, re
+import json, logging, re
+
+_log = logging.getLogger("uniphone.agent")
 
 SYSTEM_PROMPT = """You control a {platform} phone through a harness. Each step you receive:
 1) a screenshot of the phone, 2) the visible elements as text @ (x, y) center
@@ -71,6 +73,7 @@ def run_agent(task, model="qwen2.5vl:7b", max_steps=30, assume_yes=False,
             history.append({"role": "user", "content":
                             "Invalid reply. Respond with ONE JSON action object."})
             continue
+        _log.info("[%d] %s", step, json.dumps(act, ensure_ascii=False))
         if verbose:
             print(f"[{step}] {json.dumps(act, ensure_ascii=False)}")
         if act.get("action") == "done":

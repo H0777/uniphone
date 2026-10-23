@@ -4,11 +4,13 @@ Core helpers live here; the agent-editable layer lives in
 agent-workspace/agent_helpers.py and is auto-loaded below. Everything works
 in driver coordinates - screen_info() tells you that space's bounds.
 """
-import hashlib, importlib.util, os, time
+import hashlib, importlib.util, logging, os, time
 from pathlib import Path
 
 from . import ocr as _ocr
 from .drivers import get_driver
+
+_log = logging.getLogger("uniphone.helpers")
 
 CORE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = CORE_DIR.parent.parent
@@ -45,12 +47,16 @@ def connection_state():
     'not-running', 'no-window', ...)."""
     state = driver().connection_state()
     if state != "ready":
+        _log.debug("connection state: %s", state)
         return state
     if driver().has_ui_tree:
+        _log.debug("connection state: ready")
         return "ready"  # real tree: no interstitial OCR needed
     path, b = driver().screenshot()
     texts = " ".join(o["text"] for o in _ocr.recognize(path, b)).lower()
-    return "blocked" if any(m in texts for m in _BLOCKED_MARKERS) else "ready"
+    res = "blocked" if any(m in texts for m in _BLOCKED_MARKERS) else "ready"
+    _log.debug("connection state: %s", res)
+    return res
 
 
 def ensure_device():
@@ -313,6 +319,7 @@ def _load_agent_helpers():
     for name, value in vars(module).items():
         if not name.startswith("_"):
             globals()[name] = value
+    _log.debug("loaded agent helpers from %s", p)
 
 
 _load_agent_helpers()

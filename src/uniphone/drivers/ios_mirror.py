@@ -5,10 +5,12 @@ there is no UI tree (ui_tree() returns None and helpers fall back to OCR),
 and input must be synthesized at the HID level with the window frontmost.
 Ported from ShawnPana/phone-harness (MIT).
 """
-import subprocess, sys, tempfile, time
+import logging, subprocess, sys, tempfile, time
 from pathlib import Path
 
 from .base import DeviceDriver
+
+_log = logging.getLogger("uniphone.ios")
 
 if sys.platform == "darwin":
     import Quartz
@@ -57,6 +59,7 @@ class IOSMirrorDriver(DeviceDriver):
     def activate(self):
         """Bring the mirroring window frontmost. Does NOT launch the app -
         connecting the phone is the user's job, not the agent's."""
+        _log.debug("activating %s", APP_NAME)
         app = self.running_app()
         if app is None:
             raise RuntimeError(
@@ -85,6 +88,7 @@ class IOSMirrorDriver(DeviceDriver):
                 self.activate()
                 time.sleep(0.5)
                 continue
+            _log.debug("capture window id=%s", win.get("id"))
             ok, last = _run(["screencapture", "-x", "-o", "-l", str(win["id"]), path], path)
             if ok:
                 return path, win

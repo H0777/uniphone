@@ -1,5 +1,5 @@
-"""The uniphone CLI: exec Python from stdin with helpers pre-imported,
-run the local Ollama agent loop, or serve MCP tools."""
+import logging
+import os
 import sys
 from pathlib import Path
 
@@ -20,6 +20,11 @@ Env: UNIPHONE_DRIVER=android|ios-mirror   UNIPHONE_SERIAL=<adb serial>
 
 
 def main():
+    logging.basicConfig(
+        level=logging.DEBUG if os.environ.get("UNIPHONE_DEBUG") else logging.INFO,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+        datefmt="%H:%M:%S",
+    )
     args = sys.argv[1:]
     if args and args[0] in {"-h", "--help"}:
         print(USAGE)
