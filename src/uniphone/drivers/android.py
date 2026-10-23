@@ -7,12 +7,12 @@ and clickable). Hands: `input tap/swipe/text/keyevent`.
 import logging, re, subprocess, tempfile, time
 from pathlib import Path
 
+from .. import ocr as _ocr
 from .base import DeviceDriver
 
 _log = logging.getLogger("uniphone.android")
 
 TMP = Path(tempfile.gettempdir()) / "uniphone"
-TMP.mkdir(exist_ok=True)
 
 _KEYCODES = {
     "home": "KEYCODE_HOME",
@@ -29,6 +29,8 @@ _KEYCODES = {
 
 _BOUNDS_RE = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
 
+_PNG_SIG = b"\x89PNG\r\n\x1a\n"
+
 
 class AndroidDriver(DeviceDriver):
     name = "android"
@@ -38,6 +40,7 @@ class AndroidDriver(DeviceDriver):
         self.serial = serial
         self.adb = adb
         self._size = None
+        self._bounds = None
         self._adbkb = None
 
     def _has_adbkeyboard(self) -> bool:
@@ -90,19 +93,37 @@ class AndroidDriver(DeviceDriver):
         return self._size
 
     def bounds(self):
-        w, h = self.screen_size()
-        return {"x": 0, "y": 0, "w": w, "h": h}
+        if self._bounds is None:
+            w, h = self.screen_size()
+            self._bounds = {"x": 0, "y": 0, "w": w, "h": h}
+        return dict(self._bounds)
 
     def screenshot(self, path=None):
         path = str(path or TMP / "screen.png")
         data = self._cmd("exec-out", "screencap -p", binary=True, timeout=15)
-        if b"\r\n" in data[:64]:  # some shells translate line endings
-            data = data.replace(b"\r\n", b"\n")
-        if data[:4] != b"\x89PNG":
-            raise RuntimeError("screencap did not return a PNG")
+        # Never rewrite the stream: the PNG signature itself contains \r\n,
+        # so line-ending repair is indistinguishable from corruption. A valid
+        # `exec-out` capture passes through byte-for-byte; anything else
+        # fails loudly.
+        if not data.startswith(_PNG_SIG):
+            raise RuntimeError(
+                "screencap did not return a valid PNG "
+                f"(first bytes: {data[:8]!r}) - an old `adb shell` may be "
+                "translating line endings; upgrade platform-tools or check "
+                "that the harness uses `adb exec-out`")
+        TMP.mkdir(parents=True, exist_ok=True)
         Path(path).write_bytes(data)
-        w, h = self.screen_size()
-        return path, {"x": 0, "y": 0, "w": w, "h": h}
+        # Bounds follow the actual capture: when the phone is rotated,
+        # screencap, uiautomator and `input tap` all use the rotated space
+        # while `wm size` stays portrait - trusting wm size would misplace
+        # every tap.
+        try:
+            iw, ih = _ocr.image_size(path)
+            self._bounds = {"x": 0, "y": 0, "w": iw, "h": ih}
+        except Exception:
+            w, h = self.screen_size()
+            self._bounds = {"x": 0, "y": 0, "w": w, "h": h}
+        return path, dict(self._bounds)
 
     def ui_tree(self):
         import xml.etree.ElementTree as ET

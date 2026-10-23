@@ -27,18 +27,36 @@ Use once. For phone work, read SKILL.md.
 
 ## 2. The harness
 
+One command covers the common case (agent loop + MCP + OCR):
+
 ```bash
 git clone <your-repo-url> ~/.uniphone && cd ~/.uniphone
+pip install -e ".[all]"       # macOS + iPhone: pip install -e ".[all,ios]"
+./uniphone --doctor
+```
+
+Or pick extras individually for a minimal footprint:
+
+```bash
 pip install -e .            # core (no hard deps)
 pip install -e ".[ocr]"     # RapidOCR - element tree for iOS on any host
 pip install -e ".[agent]"   # ollama python client (the local agent loop)
 pip install -e ".[mcp]"     # MCP server
-./uniphone --doctor
 ```
 
 `--doctor` walks the ladder: python -> driver detected -> device state ->
 capture -> OCR/UI tree -> ollama model. Fix the first FAIL; later checks
 depend on earlier ones.
+
+### Windows notes
+
+- After `pip install -e .` the commands work from any shell (`uniphone
+  --doctor`); make sure the Python `Scripts` directory is on PATH.
+- Without installing, use the dev launcher: `uniphone.cmd --doctor`.
+- cmd.exe has no heredocs: save the script to a file and pipe it -
+  `uniphone < script.py`
+- The CLI forces UTF-8 on stdout/stderr automatically, so Arabic OCR output
+  survives redirection.
 
 ## 3. The local model (Ollama)
 

@@ -21,7 +21,6 @@ BUNDLE_ID = "com.apple.ScreenContinuity"
 APP_PATH = "/System/Applications/iPhone Mirroring.app"
 
 TMP = Path(tempfile.gettempdir()) / "uniphone"
-TMP.mkdir(exist_ok=True)
 
 
 _BOUNDS_TTL = 2.0
@@ -86,6 +85,7 @@ class IOSMirrorDriver(DeviceDriver):
         -l grabs just the window but needs it composited; fall back to a
         region capture after activate()."""
         path = str(path or TMP / "window.png")
+        TMP.mkdir(parents=True, exist_ok=True)
         last = None
         for _ in range(3):
             win = self.find_window()

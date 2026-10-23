@@ -46,8 +46,8 @@ PY
 - Long lists: scroll_collect(extract, key=...) walks to the true end,
   de-duping; scroll_until(done) stops on a predicate. End-of-list is decided
   by whether the screen actually moved, never by your parser.
-- Typing is ASCII-only on both drivers today. For Arabic/emoji on Android
-  use ADBKeyboard (install.md).
+- Typing is ASCII by default. Arabic/emoji on Android work via ADBKeyboard
+  (install.md); iOS typing is US-keyboard Latin only.
 
 ## Consent
 

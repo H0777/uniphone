@@ -63,6 +63,9 @@ def run_agent(task: str, model: str = "qwen2.5vl:7b", max_steps: int = 30,
         obs = (f"Step {step}/{max_steps}. Tap space: origin "
                f"({b['x']:.0f},{b['y']:.0f}), size {b['w']:.0f}x{b['h']:.0f}.\n"
                f"Elements:\n{elements}")
+        # keep the screenshot only on the newest user message - resending
+        # every past image each step blows the context window
+        _drop_old_images(history)
         content = f"Task: {task}\n\n{obs}" if step == 1 else obs
         history.append({"role": "user", "content": content, "images": [shot]})
 
@@ -82,8 +85,12 @@ def run_agent(task: str, model: str = "qwen2.5vl:7b", max_steps: int = 30,
         if act.get("action") == "done":
             return {"ok": True, "steps": step, "result": act.get("result", "")}
         if _RISKY_WORDS.search(json.dumps(act)) and not assume_yes:
-            if input(f"Step {step}: allow risky action {act}? [y/N] "
-                     ).strip().lower() != "y":
+            try:
+                answer = input(f"Step {step}: allow risky action {act}? [y/N] "
+                               ).strip().lower()
+            except EOFError:  # piped/scheduled run - nobody can confirm
+                answer = ""
+            if answer != "y":
                 return {"ok": False, "steps": step,
                         "result": "stopped before a risky action"}
         try:
@@ -93,6 +100,12 @@ def run_agent(task: str, model: str = "qwen2.5vl:7b", max_steps: int = 30,
             continue
         helpers.wait_stable()
     return {"ok": False, "steps": max_steps, "result": "max steps reached"}
+
+
+def _drop_old_images(history: list[dict[str, Any]]) -> None:
+    """Strip screenshot payloads from every message but the newest user one."""
+    for m in history:
+        m.pop("images", None)
 
 
 def _parse_action(msg: str) -> dict[str, Any] | None:

@@ -51,7 +51,8 @@ def main():
 
     @mcp.tool()
     def phone_type(text: str) -> str:
-        """Type into the focused field (tap the field first). ASCII only."""
+        """Type into the focused field (tap the field first). ASCII by
+        default; Arabic/emoji on Android need ADBKeyboard."""
         helpers.type_text(text)
         return "ok"
 

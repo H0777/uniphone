@@ -16,6 +16,8 @@ ios = [
 ocr = ["rapidocr-onnxruntime"]
 agent = ["ollama"]
 mcp = ["mcp"]
+# everything cross-platform in one extra (add ,ios on a Mac)
+all = ["ollama", "mcp", "rapidocr-onnxruntime"]
 dev = ["pytest>=7.0"]
 
 [project.scripts]
@@ -28,6 +30,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/uniphone"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"SKILL.md" = "uniphone/SKILL.md"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

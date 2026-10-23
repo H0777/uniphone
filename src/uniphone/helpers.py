@@ -6,7 +6,7 @@ in driver coordinates - screen_info() tells you that space's bounds.
 """
 from __future__ import annotations
 
-import hashlib, importlib.util, logging, os, time
+import hashlib, importlib.resources, importlib.util, logging, os, time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -20,8 +20,20 @@ _log = logging.getLogger("uniphone.helpers")
 
 CORE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = CORE_DIR.parent.parent
-AGENT_WORKSPACE = Path(
-    os.environ.get("UNIPHONE_AGENT_WORKSPACE", REPO_ROOT / "agent-workspace"))
+
+
+def _resolve_agent_workspace() -> Path:
+    """Where the agent-editable helpers live: explicit env var, the repo
+    checkout's agent-workspace/, else a per-user dir (wheel installs)."""
+    env = os.environ.get("UNIPHONE_AGENT_WORKSPACE")
+    if env:
+        return Path(env)
+    if (REPO_ROOT / "agent-workspace").exists():
+        return REPO_ROOT / "agent-workspace"
+    return Path.home() / ".uniphone" / "agent-workspace"
+
+
+AGENT_WORKSPACE = _resolve_agent_workspace()
 
 _DRIVER = None
 
@@ -321,6 +333,11 @@ def wait_stable(timeout: float = 6.0, interval: float = 0.5, settle: int = 2) ->
 def _load_agent_helpers():
     p = AGENT_WORKSPACE / "agent_helpers.py"
     if not p.exists():
+        if os.environ.get("UNIPHONE_AGENT_WORKSPACE"):
+            _log.warning("UNIPHONE_AGENT_WORKSPACE points at %s but "
+                         "agent_helpers.py is missing there", AGENT_WORKSPACE)
+        else:
+            _seed_agent_workspace(p)
         return
     try:
         spec = importlib.util.spec_from_file_location("uniphone_agent_helpers", p)
@@ -334,6 +351,21 @@ def _load_agent_helpers():
         _log.debug("loaded agent helpers from %s", p)
     except Exception as e:
         _log.warning("failed to load agent helpers from %s: %s", p, e)
+
+
+def _seed_agent_workspace(p: Path) -> None:
+    """First run on a wheel install: drop the bundled template into the
+    per-user workspace so agents always have a helpers file to edit."""
+    try:
+        tpl = importlib.resources.files("uniphone").joinpath(
+            "data/agent_helpers.py")
+        if not tpl.is_file():
+            return  # no bundled template (repo checkouts use the repo copy)
+        AGENT_WORKSPACE.mkdir(parents=True, exist_ok=True)
+        p.write_text(tpl.read_text(encoding="utf-8"), encoding="utf-8")
+        _log.info("seeded agent workspace: %s", p)
+    except (OSError, ImportError) as e:
+        _log.debug("no agent workspace seeded: %s", e)
 
 
 _load_agent_helpers()
