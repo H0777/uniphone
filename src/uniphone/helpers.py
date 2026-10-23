@@ -310,6 +310,7 @@ def wait_stable(timeout: float = 6.0, interval: float = 0.5, settle: int = 2) ->
         path, _ = driver().screenshot()
         digest = hashlib.md5(Path(path).read_bytes()).hexdigest()
         same = same + 1 if digest == prev else 0
+        _log.debug("wait_stable: %s settle=%d/%d", digest[:8], same, settle)
         if same >= settle - 1:
             return True
         prev = digest
