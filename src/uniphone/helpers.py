@@ -4,8 +4,14 @@ Core helpers live here; the agent-editable layer lives in
 agent-workspace/agent_helpers.py and is auto-loaded below. Everything works
 in driver coordinates - screen_info() tells you that space's bounds.
 """
+from __future__ import annotations
+
 import hashlib, importlib.util, logging, os, time
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable
+
+if TYPE_CHECKING:
+    from .drivers.base import DeviceDriver
 
 from . import ocr as _ocr
 from .drivers import get_driver
@@ -20,7 +26,7 @@ AGENT_WORKSPACE = Path(
 _DRIVER = None
 
 
-def driver():
+def driver() -> DeviceDriver:
     """The active DeviceDriver (UNIPHONE_DRIVER=android|ios-mirror, else auto)."""
     global _DRIVER
     if _DRIVER is None:
@@ -28,7 +34,7 @@ def driver():
     return _DRIVER
 
 
-def set_driver(name):
+def set_driver(name: str) -> DeviceDriver:
     global _DRIVER
     _DRIVER = get_driver(name)
     return _DRIVER
@@ -42,7 +48,7 @@ _BLOCKED_MARKERS = ("iphone in use", "lock your iphone", "mirroring ended",
                     "to connect")
 
 
-def connection_state():
+def connection_state() -> str:
     """'ready' | 'blocked' | driver state ('no-device', 'unauthorized',
     'not-running', 'no-window', ...)."""
     state = driver().connection_state()
@@ -59,7 +65,7 @@ def connection_state():
     return res
 
 
-def ensure_device():
+def ensure_device() -> None:
     """Raise with user-facing instructions unless the phone is ready."""
     state = connection_state()
     if state == "ready":
@@ -89,36 +95,36 @@ def ensure_device():
 
 # --- eyes ---
 
-def screenshot(path=None):
+def screenshot(path: str | None = None) -> tuple[str, dict[str, float]]:
     """(path, bounds). View the PNG to see the phone."""
     return driver().screenshot(path)
 
 
-def screen_info():
+def screen_info() -> dict[str, Any]:
     path, b = driver().screenshot()
     w, h = _ocr.image_size(path)
     return {"driver": driver().name, "bounds": b, "img_px": [w, h]}
 
 
-def ui_tree():
+def ui_tree() -> list[dict[str, Any]]:
     """The element tree: real accessibility nodes on Android, OCR boxes on
     iOS. [{text, x, y, w, h, (clickable)}] in driver coordinates."""
     tree = driver().ui_tree()
     return tree if tree is not None else ocr()
 
 
-def ocr(min_confidence=0.3):
+def ocr(min_confidence: float = 0.3) -> list[dict[str, Any]]:
     path, b = driver().screenshot()
     return [o for o in _ocr.recognize(path, b) if o["confidence"] >= min_confidence]
 
 
-def find_text(query, exact=False):
+def find_text(query: str, exact: bool = False) -> list[dict[str, Any]]:
     q = query.lower()
     return [o for o in ui_tree()
             if (o["text"].lower() == q if exact else q in o["text"].lower())]
 
 
-def tap_text(query, index=0, exact=False):
+def tap_text(query: str, index: int = 0, exact: bool = False) -> dict[str, Any]:
     """Find text on screen and tap its center. Raises with what IS visible."""
     hits = find_text(query, exact=exact)
     if not hits:
@@ -131,38 +137,38 @@ def tap_text(query, index=0, exact=False):
 
 # --- hands ---
 
-def tap(x, y):
+def tap(x: float, y: float) -> None:
     driver().tap(x, y)
 
 
-def long_press(x, y, duration=0.8):
+def long_press(x: float, y: float, duration: float = 0.8) -> None:
     driver().long_press(x, y, duration)
 
 
-def type_text(text):
+def type_text(text: str) -> None:
     driver().type_text(text)
 
 
-def press(key):
+def press(key: str) -> None:
     """press('home'|'back'|'enter'|'delete'|'app_switcher'|...)."""
     driver().press_key(key)
 
 
-def home():
+def home() -> None:
     driver().home()
     time.sleep(0.8)
 
 
-def back():
+def back() -> None:
     driver().back()
     time.sleep(0.8)
 
 
-def open_app(name):
+def open_app(name: str) -> str:
     return driver().open_app(name)
 
 
-def swipe(direction, distance=0.4):
+def swipe(direction: str, distance: float = 0.4) -> None:
     """swipe('up'|'down'|'left'|'right') - finger motion; 'up' scrolls down."""
     b = driver().bounds()
     cx, cy = b["x"] + b["w"] / 2, b["y"] + b["h"] / 2
@@ -174,7 +180,7 @@ def swipe(direction, distance=0.4):
                    duration=0.12)
 
 
-def scroll(amount=0.6):
+def scroll(amount: float = 0.6) -> None:
     """Scroll at screen center; amount is a fraction of screen height.
     Positive reveals content below."""
     b = driver().bounds()
@@ -183,7 +189,7 @@ def scroll(amount=0.6):
 
 # --- scrolling through lists ---
 
-def _content_texts(top_frac=0.06, bottom_frac=0.92):
+def _content_texts(top_frac: float = 0.06, bottom_frac: float = 0.92) -> list[dict[str, Any]]:
     """Element tree of the scrollable content area, excluding the status bar
     at top and the nav strip at bottom."""
     b = driver().bounds()
@@ -192,18 +198,19 @@ def _content_texts(top_frac=0.06, bottom_frac=0.92):
     return [o for o in ui_tree() if top < o["y"] < bot]
 
 
-def _text_set(boxes):
+def _text_set(boxes: list[dict[str, Any]]) -> frozenset[str]:
     return frozenset(o["text"].strip() for o in boxes if o["text"].strip())
 
 
-def _overlap(a, b):
+def _overlap(a: frozenset[str], b: frozenset[str]) -> float:
     """Jaccard overlap: ~1.0 = same screen, low = it moved."""
     if not a or not b:
         return 0.0
     return len(a & b) / len(a | b)
 
 
-def scroll_screen(direction="up", amount=0.6, settle=2.5, moved_thresh=0.6):
+def scroll_screen(direction: str = "up", amount: float = 0.6, settle: float = 2.5,
+                  moved_thresh: float = 0.6) -> dict[str, Any]:
     """One scroll, then wait for the screen to settle (so lazy-load resolves
     before judging movement). direction 'up' reveals content below.
 
@@ -231,7 +238,8 @@ def scroll_screen(direction="up", amount=0.6, settle=2.5, moved_thresh=0.6):
             "before": before, "after": after, "boxes": prev_boxes or []}
 
 
-def scroll_until(done, direction="up", amount=0.6, max_scrolls=60, settle=2.5):
+def scroll_until(done: Callable[[list[dict[str, Any]]], Any], direction: str = "up",
+                 amount: float = 0.6, max_scrolls: int = 60, settle: float = 2.5) -> Any:
     """Scroll until done(boxes) is truthy or the list stops moving."""
     boxes = _content_texts()
     hit = done(boxes)
@@ -250,8 +258,10 @@ def scroll_until(done, direction="up", amount=0.6, max_scrolls=60, settle=2.5):
     return None
 
 
-def scroll_collect(extract=None, key=None, direction="up", amount=0.6,
-                   max_scrolls=400, end_after=3, settle=2.5, on_progress=None):
+def scroll_collect(extract: Callable[[list[dict[str, Any]]], list[Any]] | None = None,
+                   key: Callable[[Any], Any] | None = None, direction: str = "up",
+                   amount: float = 0.6, max_scrolls: int = 400, end_after: int = 3,
+                   settle: float = 2.5, on_progress: Callable[..., Any] | None = None) -> dict[str, Any]:
     """Scroll a list top-to-bottom, extracting and de-duping items each
     screen, until the list reaches its true end.
 
@@ -288,11 +298,11 @@ def scroll_collect(extract=None, key=None, direction="up", amount=0.6,
 
 # --- timing ---
 
-def wait(seconds=1.0):
+def wait(seconds: float = 1.0) -> None:
     time.sleep(seconds)
 
 
-def wait_stable(timeout=6.0, interval=0.5, settle=2):
+def wait_stable(timeout: float = 6.0, interval: float = 0.5, settle: int = 2) -> bool:
     """Wait until `settle` consecutive captures are identical (animation done)."""
     prev, same = None, 0
     deadline = time.time() + timeout

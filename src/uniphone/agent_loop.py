@@ -5,7 +5,10 @@ JSON action. Works with any vision model Ollama can run (qwen2.5vl,
 llama3.2-vision, ...). Usage:
     uniphone agent "open Notes and create a note called shopping"
 """
+from __future__ import annotations
+
 import json, logging, re
+from typing import Any
 
 _log = logging.getLogger("uniphone.agent")
 
@@ -37,8 +40,8 @@ _RISKY_WORDS = re.compile(
     r"\b(send|post|purchase|buy|delete|pay|publish|share|confirm)\b", re.I)
 
 
-def run_agent(task, model="qwen2.5vl:7b", max_steps=30, assume_yes=False,
-              verbose=True):
+def run_agent(task: str, model: str = "qwen2.5vl:7b", max_steps: int = 30,
+              assume_yes: bool = False, verbose: bool = True) -> dict[str, Any]:
     try:
         import ollama
     except ImportError:
@@ -92,7 +95,7 @@ def run_agent(task, model="qwen2.5vl:7b", max_steps=30, assume_yes=False,
     return {"ok": False, "steps": max_steps, "result": "max steps reached"}
 
 
-def _parse_action(msg):
+def _parse_action(msg: str) -> dict[str, Any] | None:
     m = re.search(r"\{.*\}", msg, re.S)
     if not m:
         return None
@@ -103,7 +106,7 @@ def _parse_action(msg):
     return act if isinstance(act, dict) and "action" in act else None
 
 
-def _dispatch(helpers, act):
+def _dispatch(helpers: Any, act: dict[str, Any]) -> None:
     a = act.get("action")
     if a == "tap":
         helpers.tap(float(act["x"]), float(act["y"]))

@@ -3,14 +3,17 @@
 Only needed for drivers without a real UI tree (iOS mirroring). Android gets
 its element tree from uiautomator, so OCR is optional there.
 """
+from __future__ import annotations
+
 import logging, struct, sys
+from typing import Any
 
 _log = logging.getLogger("uniphone.ocr")
 _backend = None
 _engine = None
 
 
-def image_size(path):
+def image_size(path: str) -> tuple[int, int]:
     with open(path, "rb") as f:
         head = f.read(26)
     if head[:4] != b"\x89PNG":
@@ -18,7 +21,7 @@ def image_size(path):
     return struct.unpack(">II", head[16:24])
 
 
-def backend():
+def backend() -> str:
     global _backend
     if _backend:
         return _backend
@@ -41,7 +44,7 @@ def backend():
         "anywhere: pip install rapidocr-onnxruntime")
 
 
-def recognize(path, bounds):
+def recognize(path: str, bounds: dict[str, float]) -> list[dict[str, Any]]:
     """[{text, confidence, x, y, w, h}] - (x, y) is the box center in driver
     coordinates (bounds space), ready for tap()."""
     b = backend()
