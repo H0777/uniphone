@@ -38,6 +38,13 @@ class AndroidDriver(DeviceDriver):
         self.serial = serial
         self.adb = adb
         self._size = None
+        self._adbkb = None
+
+    def _has_adbkeyboard(self) -> bool:
+        if self._adbkb is None:
+            imes = self._shell("ime list -s")
+            self._adbkb = "com.android.adbkeyboard/.AdbIME" in imes
+        return self._adbkb
 
     # --- low level ---
     def _cmd(self, *args, binary=False, timeout=30):
@@ -143,9 +150,7 @@ class AndroidDriver(DeviceDriver):
         ms = max(50, int(duration * 1000))
         self._shell(f"input swipe {int(x1)} {int(y1)} {int(x2)} {int(y2)} {ms}")
 
-    def type_text(self, text):
-        """US-ASCII via `input text`. For Arabic/emoji use ADBKeyboard
-        (install.md) - `input text` cannot send non-ASCII."""
+    def type_text(self, text: str) -> None:
         for i, line in enumerate(text.split("\n")):
             if i:
                 self.press_key("enter")
@@ -153,11 +158,17 @@ class AndroidDriver(DeviceDriver):
                 continue
             try:
                 line.encode("ascii")
+                self._shell("input text " + _escape(line))
             except UnicodeEncodeError:
-                raise ValueError(
-                    f"cannot type non-ASCII {line!r} via `input text` - "
-                    "use ADBKeyboard (see install.md) for Arabic/emoji")
-            self._shell("input text " + _escape(line))
+                if not self._has_adbkeyboard():
+                    raise ValueError(
+                        f"cannot type non-ASCII {line!r} — install ADBKeyboard "
+                        "(see install.md) for Arabic/emoji")
+                import base64
+                encoded = base64.b64encode(line.encode("utf-8")).decode()
+                self._shell(f"am broadcast -a ADB_INPUT_B64 "
+                            f"--es msg {encoded} "
+                            f"-n com.android.adbkeyboard/.AdbIME")
 
     def press_key(self, key):
         code = _KEYCODES.get(key.lower())
