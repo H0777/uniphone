@@ -24,6 +24,9 @@ TMP = Path(tempfile.gettempdir()) / "uniphone"
 TMP.mkdir(exist_ok=True)
 
 
+_BOUNDS_TTL = 2.0
+
+
 class IOSMirrorDriver(DeviceDriver):
     name = "ios-mirror"
     has_ui_tree = False
@@ -33,6 +36,8 @@ class IOSMirrorDriver(DeviceDriver):
             raise RuntimeError("the ios-mirror driver needs macOS (iPhone Mirroring)")
         if not Path(APP_PATH).exists():
             raise RuntimeError("iPhone Mirroring app not found - needs macOS Sequoia+")
+        self._bounds_cache = None
+        self._bounds_ts = 0.0
 
     # --- window / app state ---
     def find_window(self):
@@ -105,6 +110,9 @@ class IOSMirrorDriver(DeviceDriver):
         return None  # video stream - OCR is the element tree
 
     def bounds(self):
+        now = time.monotonic()
+        if self._bounds_cache and (now - self._bounds_ts) < _BOUNDS_TTL:
+            return self._bounds_cache
         win = self.find_window()
         if win is None:
             self.activate()
@@ -112,6 +120,8 @@ class IOSMirrorDriver(DeviceDriver):
         if win is None:
             raise RuntimeError(
                 f"{APP_NAME} has no phone window - connect your phone.")
+        self._bounds_cache = win
+        self._bounds_ts = now
         return win
 
     # --- hands ---
